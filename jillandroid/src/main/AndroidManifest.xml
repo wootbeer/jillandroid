@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+	xmlns:tools="http://schemas.android.com/tools"
+	package="wootbeer.jillandroid"
+	android:installLocation="auto">
+
+	<application
+		android:allowBackup="false"
+		android:icon="@mipmap/ic_launcher"
+		android:label="@string/app_name"
+		android:appCategory="game"
+		tools:targetApi="o">
+		<!--
+			wootbeer: "if during the boss battle I lock the android device's screen, then come back
+			to the game, the game's music actually changed." Root cause: this activity was
+			missing android:configChanges entirely, and android:screenOrientation below is
+			"sensorLandscape", a device orientation SENSOR reading, not a fixed rotation,
+			which keeps reporting a value even face-down/locked in a pocket, and very often
+			reports a DIFFERENT landscape reading (regular vs. upside-down landscape) by the
+			time the screen is unlocked than it did going in. Without configChanges listing
+			"orientation" (and, per Android's own docs, "screenSize"/"screenLayout" alongside it
+			on API 13+, since a sensor-driven landscape flip can also touch those), Android's
+			default behavior for ANY of those config deltas, even ones that never change this
+			fixed-landscape layout at all, is to fully DESTROY AND RECREATE the Activity
+			(onCreate() again), which built a brand-new GotView instance back when this activity
+			still handed off to one (the same config-change hazard applies to JillView, which now
+			IS that role: see the JillGameActivity block below, which already carries the
+			identical android:configChanges fix for exactly this reason). That new instance's own
+			gotRunning started false, so its surfaceCreated() (GotView.java) took the cold-start
+			branch and spawned a SECOND native gotMain() (got_main.c) call on a new thread, while
+			the ORIGINAL render thread (still correctly blocked inside pauseRenderThread(),
+			holding the real in-progress boss fight) was simply orphaned, never torn down. This
+			port's own native globals (s_boss_active, s_current_level, etc.) are plain C statics
+			in the one shared library instance for this process, so they were untouched by the
+			new Activity, the boss fight's own game STATE survived intact, but gotMain()'s own
+			one-time startup sequence unconditionally called got_play_music(MUSIC_OPENSONG, false)
+			once GOTRES.DAT loaded successfully (see that call site's own comment: correct for an
+			actual cold launch, since nothing else could already be playing at that exact point,
+			not true here), stomping the boss music that was still legitimately active in the
+			orphaned original session. Fixed the standard Android way: android:configChanges below
+			tells the OS this activity handles these config deltas itself (a no-op here, since
+			onConfigurationChanged() is never overridden and the locked sensorLandscape layout
+			never actually needs to change), so Android leaves the existing Activity instance (and
+			its one real render thread, once there is one) alone across an orientation-sensor
+			reading change instead of recreating it.
+		-->
+		<activity
+			android:name="wootbeer.jillandroid.JillActivity"
+			android:label="@string/app_name"
+			android:launchMode="singleTask"
+			android:screenOrientation="sensorLandscape"
+			android:theme="@style/DescoreFullscreenTheme"
+			android:windowSoftInputMode="adjustNothing"
+			android:hardwareAccelerated="false"
+			android:exported="true"
+			android:configChanges="orientation|screenSize|screenLayout|keyboardHidden">
+			<intent-filter>
+				<action android:name="android.intent.action.MAIN" />
+				<category android:name="android.intent.category.LAUNCHER" />
+			</intent-filter>
+		</activity>
+
+		<!-- Jill's own game screen: JillView.java drives JUNGLE.c's real, fully-ported game
+			 engine (see that class's own header comment). Not exported: only ever launched from
+			 JillActivity's own per-episode "Play Episode N" button within this same app (that
+			 class, Jill's real folder-picker/episode-readiness screen, lives in this same
+			 wootbeer.jillandroid package: see its own header comment for the rename/move it
+			 went through during this project's pre-release cleanup). -->
+		<activity
+			android:name="wootbeer.jillandroid.JillGameActivity"
+			android:label="@string/app_name"
+			android:launchMode="singleTask"
+			android:screenOrientation="sensorLandscape"
+			android:theme="@style/DescoreFullscreenTheme"
+			android:windowSoftInputMode="adjustNothing"
+			android:hardwareAccelerated="false"
+			android:exported="false"
+			android:configChanges="orientation|screenSize|screenLayout|keyboardHidden" />
+	</application>
+</manifest>
