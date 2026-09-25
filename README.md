@@ -17,9 +17,9 @@ On first launch the game will ask you to select the folder with the files. If it
 
 Controls
 -------
-Auto show/hide on-screen touch controls.
-Optimized for handhelds.
-The few controls can be remapped in-game.
+Auto show/hide on-screen touch controls. 
+Optimized for handhelds. 
+The few controls can be remapped in-game. 
 
 Android Handhelds / Retroid Devices:
 Make sure controller style is set to Retro or whatever your devices default is. Ntndo style as opposed to Xbox style, swipe down menu to access these options.
